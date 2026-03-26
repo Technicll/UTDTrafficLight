@@ -352,33 +352,64 @@ module RiseEdge_Detector(Output, I, Clock);
 endmodule
 
 
-module Big(out_0, out_1, out_2, out_3, clk_0, inp_0);
-  output [2:0] out_0, out_1, out_2, out_3;
-  input clk_0;
-  input [3:0] inp_0;
-  wire Button_0_out, and_1_out, and_2_out, RiseEdge_Detector_4_out, Counter_2_3_out_0, Counter_2_3_out_1, and_3_out, OP_Selector_2_out_2, OP_Selector_2_out_3, and_0_out;
-  wire [1:0] OP_Selector_2_out_0, OP_Selector_2_out_1, OP_Selector_2_out_4, OP_Selector_2_out_5;
-  wire [2:0] Side_1_out_0, Side_1_out_1, Main_0_out_0, Main_0_out_1;
-  wire [3:0] xnor_0_out, Multiplexer_0_out, DflipFlop_0_Q, All_Red, Ground_0_out;
-  assign Button_0_out = inp_0[0];
-  Side Side_1(Side_1_out_0, Side_1_out_1, Button_0_out, clk_0, OP_Selector_2_out_1, OP_Selector_2_out_3, OP_Selector_2_out_5);
-  assign out_3 = Side_1_out_1;
-  assign out_2 = Side_1_out_0;
-  Main Main_0(Main_0_out_0, Main_0_out_1, clk_0, clk_0, OP_Selector_2_out_0, Button_0_out, OP_Selector_2_out_4, OP_Selector_2_out_3);
-  assign out_1 = Main_0_out_1;
-  assign out_0 = Main_0_out_0;
-  assign xnor_0_out = ~(Ground_0_out ^ inp_0);
-  assign and_1_out = xnor_0_out[2] & xnor_0_out[3];
-  assign and_2_out = and_0_out & and_1_out;
-  RiseEdge_Detector RiseEdge_Detector_4(RiseEdge_Detector_4_out, and_2_out, clk_0);
-  Counter_2 Counter_2_3(Counter_2_3_out_0, Counter_2_3_out_1, clk_0, RiseEdge_Detector_4_out);
-  assign and_3_out = Counter_2_3_out_1 & Counter_2_3_out_0;
-  Multiplexer2 #(4) Multiplexer_0(Multiplexer_0_out, All_Red, DflipFlop_0_Q, and_3_out);
-  OP_Selector OP_Selector_2(OP_Selector_2_out_0, OP_Selector_2_out_1, OP_Selector_2_out_2, OP_Selector_2_out_3, OP_Selector_2_out_4, OP_Selector_2_out_5, Multiplexer_0_out);
-  assign and_0_out = xnor_0_out[0] & xnor_0_out[1];
-  DflipFlop #(4) DflipFlop_0(DflipFlop_0_Q, , clk_0, inp_0, Button_0_out, ,);
-  assign All_Red = 4'b1110;
-  assign Ground_0_out = 4'b0;
+module Big(
+    output [2:0] out_0, out_1, out_2, out_3,
+    output [3:0] current_opcode, 
+    output [1:0] north_state, south_state, east_state, west_state,
+    output error_flag, // simple error flag
+    input clk_0, Reset, // explicit Reset
+    input [3:0] inp_0
+);
+    wire Button_0_out, and_1_out, and_2_out, RiseEdge_Detector_4_out, Counter_2_3_out_0, Counter_2_3_out_1, and_3_out, OP_Selector_2_out_2, OP_Selector_2_out_3, and_0_out;
+    wire [1:0] OP_Selector_2_out_0, OP_Selector_2_out_1, OP_Selector_2_out_4, OP_Selector_2_out_5;
+    wire [2:0] Side_1_out_0, Side_1_out_1, Main_0_out_0, Main_0_out_1;
+    wire [3:0] xnor_0_out, Multiplexer_0_out, DflipFlop_0_Q, All_Red, Ground_0_out;
+    assign Button_0_out = 1'b0; // allows for a button effect
+
+    Side Side_1(
+        Side_1_out_0, Side_1_out_1,
+        Reset, clk_0, OP_Selector_2_out_1, OP_Selector_2_out_3, OP_Selector_2_out_5
+    );
+    assign out_3 = Side_1_out_1;
+    assign out_2 = Side_1_out_0;
+
+    Main Main_0(
+        Main_0_out_0, Main_0_out_1,
+        clk_0, clk_0,
+        OP_Selector_2_out_0, Reset, OP_Selector_2_out_4, OP_Selector_2_out_3
+    );
+    assign out_1 = Main_0_out_1;
+    assign out_0 = Main_0_out_0;
+
+    // Status outputs
+    assign current_opcode = inp_0;
+
+    // 2‑bit state per road (from OP_Selector outputs)
+    assign north_state = OP_Selector_2_out_0;
+    assign south_state = OP_Selector_2_out_4;
+    assign east_state = OP_Selector_2_out_1;
+    assign west_state = OP_Selector_2_out_5;
+
+    // error flag with an example
+    assign error_flag = (inp_0[3:2] == 2'b11);
+
+    // existing rest of Big (xnor, counters, OP_Selector_2, etc.)
+    assign xnor_0_out = ~(Ground_0_out ^ inp_0);
+    assign and_1_out = xnor_0_out[2] & xnor_0_out[3];
+    assign and_2_out = and_0_out & and_1_out;
+    RiseEdge_Detector RiseEdge_Detector_4(RiseEdge_Detector_4_out, and_2_out, clk_0);
+    Counter_2 Counter_2_3(Counter_2_3_out_0, Counter_2_3_out_1, clk_0, RiseEdge_Detector_4_out);
+    assign and_3_out = Counter_2_3_out_1 & Counter_2_3_out_0;
+    Multiplexer2 #(4) Multiplexer_0(Multiplexer_0_out, All_Red, DflipFlop_0_Q, and_3_out);
+    OP_Selector OP_Selector_2(
+        OP_Selector_2_out_0, OP_Selector_2_out_1,
+        OP_Selector_2_out_2, OP_Selector_2_out_3,
+        OP_Selector_2_out_4, OP_Selector_2_out_5, Multiplexer_0_out
+    );
+    assign and_0_out = xnor_0_out[0] & xnor_0_out[1];
+    DflipFlop #(4) DflipFlop_0(DflipFlop_0_Q, , clk_0, inp_0, Button_0_out, ,);
+    assign All_Red = 4'b1110;
+    assign Ground_0_out = 4'b0;
 endmodule
 
 module TwoBitRiseEdge (Output, I, Clock);
