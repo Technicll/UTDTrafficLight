@@ -21,7 +21,7 @@ module TestBench();
 
   Big DUT0(out_0, out_1, out_2, out_3, clk_0, inp_0);
 
-  \2BitRiseEdge  DUT1(Output, I, Clock);
+  \TwoBitRiseEdge  DUT1(Output, I, Clock);
 
   always begin
     #10
@@ -55,6 +55,60 @@ module TestBench();
 endmodule
 
 */
+/*
+module TestBench();
+  reg clk_0, Clock; // clock
+  reg [3:0] inp_0;  // opcode
+  
+  wire [2:0] out_0, out_1, out_2, out_3;
+  
+  Big DUT(out_0, out_1, out_2, out_3, clk_0, inp_0);
+  
+  always begin
+    #10 clk_0 = 0;
+    #10 clk_0 = 1;
+  end
+  
+  initial begin
+    Clock = 0; inp_0 = 4'b0000;  // Reset low, all-off mode
+    #20 inp_0 = 4'b0001;         // Mode 1
+    #200
+    $display("North: %b, South: %b, East: %b, West: %b", out_0, out_1, out_2, out_3);
+    $finish;
+  end
+endmodule
+*/
+
+module TestBench();
+    reg clk_0;
+    reg [3:0] inp_0;
+
+    wire [2:0] out_0, out_1, out_2, out_3;
+
+    Big DUT(out_0, out_1, out_2, out_3, clk_0, inp_0);
+
+    always begin
+        #10 clk_0 = 0;
+        #10 clk_0 = 1;
+    end
+
+    initial begin
+        inp_0 = 4'b0000;
+        #50
+        inp_0 = 4'b0001;
+        #100
+        inp_0 = 4'b0010;
+        #100
+        inp_0 = 4'b0011;
+        #500
+        $finish;
+    end
+
+    always @(posedge clk_0) begin
+        $display("t=%0t: inp=%b | N=%b S=%b E=%b W=%b",
+            $time, inp_0, out_0, out_1, out_2, out_3);
+    end
+endmodule
 
 module Counter_2(q0, q1, Clock, Reset);
   output q0,  q1;
@@ -137,24 +191,21 @@ module Main(Main_Light_North, Main_Light_South, clk_0, Clock, Mode_North, Reset,
   output [2:0] Main_Light_North, Main_Light_South;
   input Clock, Reset, Timing_Code, clk_0;
   input [1:0] Mode_North, Mode_South;
-  wire [1:0] North_out, South_out;
-  wire [2:0] Multiplexer_0_out, Main_Light_Register_Q, Main_Light_South_out, Off, Red, Yellow, Green;
-  main_selector North(North_out, Mode_North, Clock, Reset, Timing_Code);
-  Multiplexer4 #(3) Multiplexer_0(Multiplexer_0_out, Green, Yellow, Red, Off, North_out);
-  DflipFlop #(3) Main_Light_Register(Main_Light_Register_Q, , Clock, Multiplexer_0_out, , , );
-  assign Main_Light_North = Main_Light_Register_Q;
-  main_selector South(South_out, Mode_South, Clock, Reset, Timing_Code);
-  Multiplexer4 #(3) Main_Light_South(Main_Light_South_out, Green, Yellow, Red, Off, South_out);
-  DflipFlop #(3) Main_Light_Register(Main_Light_Register_Q, , Clock, Main_Light_South_out, , , );
-  assign Main_Light_South = Main_Light_Register_Q;
-  assign Off = 3'b000;
-  assign Off = 3'b000;
-  assign Red = 3'b001;
-  assign Yellow = 3'b010;
-  assign Green = 3'b100;
-  assign Red = 3'b001;
-  assign Yellow = 3'b010;
-  assign Green = 3'b100;
+  wire [1:0] north_color, south_color;
+  wire [2:0] north_mux_out, south_mux_out, north_reg_q, south_reg_q;
+  wire [2:0] off=3'b000, red=3'b001, yellow=3'b010, green=3'b100;
+  
+  // North lights
+  main_selector north_sel(north_color, clk_0, Mode_North, Clock, Reset, Timing_Code);
+  Multiplexer4 #(3) north_mux(north_mux_out, green, yellow, red, off, north_color);
+  DflipFlop #(3) north_register(north_reg_q, , Clock, north_mux_out, Reset, ,); // FIX
+  assign Main_Light_North = north_reg_q;
+  
+  // South lights  
+  main_selector south_sel(south_color, clk_0, Mode_South, Clock, Reset, Timing_Code);
+  Multiplexer4 #(3) south_mux(south_mux_out, green, yellow, red, off, south_color);
+  DflipFlop #(3) south_register(south_reg_q, , Clock, south_mux_out, Reset, , ); // FIX
+  assign Main_Light_South = south_reg_q;
 endmodule
 
 module Side_Timing(Change_Light_Trigger, Clock, Reset, Timing_Mode, Light_Timing_Select);
@@ -208,19 +259,15 @@ module Side(Side_Light_East, Side_Light_West, Reset, Clock, Mode_East, Timing_Mo
   input [1:0] Mode_East, Mode_West;
   wire [1:0] Side_selector_1_out, Side_selector_0_out;
   wire [2:0] Main_Light_South_out, Side_Light_West_Register_Q, Side_Ligth_North_out, Side_Light_East_Register_Q, Off, Red, Yellow, Green;
-  Side_selector Side_selector_1(Side_selector_1_out, Mode_West, Clock, Reset, Timing_Mode);
+  Side_selector Side_selector_1(Side_selector_1_out, Clock, Mode_West, Clock, Reset, Timing_Mode); // added clock
   Multiplexer4 #(3) Main_Light_South(Main_Light_South_out, Red, Green, Yellow, Off, Side_selector_1_out);
   DflipFlop #(3) Side_Light_West_Register(Side_Light_West_Register_Q, , Clock, Main_Light_South_out, Reset, , );
   assign Side_Light_West = Side_Light_West_Register_Q;
-  Side_selector Side_selector_0(Side_selector_0_out, Mode_East, Clock, Reset, Timing_Mode);
+  Side_selector Side_selector_0(Side_selector_0_out, Clock, Mode_East, Clock, Reset, Timing_Mode); // added clock
   Multiplexer4 #(3) Side_Ligth_North(Side_Ligth_North_out, Red, Green, Yellow, Off, Side_selector_0_out);
   DflipFlop #(3) Side_Light_East_Register(Side_Light_East_Register_Q, , Clock, Side_Ligth_North_out, Reset, , );
   assign Side_Light_East = Side_Light_East_Register_Q;
   assign Off = 3'b000;
-  assign Off = 3'b000;
-  assign Red = 3'b001;
-  assign Yellow = 3'b010;
-  assign Green = 3'b100;
   assign Red = 3'b001;
   assign Yellow = 3'b010;
   assign Green = 3'b100;
@@ -313,29 +360,28 @@ module Big(out_0, out_1, out_2, out_3, clk_0, inp_0);
   wire [1:0] OP_Selector_2_out_0, OP_Selector_2_out_1, OP_Selector_2_out_4, OP_Selector_2_out_5;
   wire [2:0] Side_1_out_0, Side_1_out_1, Main_0_out_0, Main_0_out_1;
   wire [3:0] xnor_0_out, Multiplexer_0_out, DflipFlop_0_Q, All_Red, Ground_0_out;
-  Button0 Button_0(Button_0_out);
+  assign Button_0_out = inp_0[0];
   Side Side_1(Side_1_out_0, Side_1_out_1, Button_0_out, clk_0, OP_Selector_2_out_1, OP_Selector_2_out_3, OP_Selector_2_out_5);
   assign out_3 = Side_1_out_1;
   assign out_2 = Side_1_out_0;
-  Main Main_0(Main_0_out_0, Main_0_out_1, clk_0, OP_Selector_2_out_0, Button_0_out, OP_Selector_2_out_4, OP_Selector_2_out_3);
+  Main Main_0(Main_0_out_0, Main_0_out_1, clk_0, clk_0, OP_Selector_2_out_0, Button_0_out, OP_Selector_2_out_4, OP_Selector_2_out_3);
   assign out_1 = Main_0_out_1;
   assign out_0 = Main_0_out_0;
   assign xnor_0_out = ~(Ground_0_out ^ inp_0);
-  
   assign and_1_out = xnor_0_out[2] & xnor_0_out[3];
   assign and_2_out = and_0_out & and_1_out;
-  RiseEdge_Detector RiseEdge_Detector_4(RiseEdge_Detector_4_out, and_2_out, );
-  Counter_2 Counter_2_3(Counter_2_3_out_0, Counter_2_3_out_1, , RiseEdge_Detector_4_out);
+  RiseEdge_Detector RiseEdge_Detector_4(RiseEdge_Detector_4_out, and_2_out, clk_0);
+  Counter_2 Counter_2_3(Counter_2_3_out_0, Counter_2_3_out_1, clk_0, RiseEdge_Detector_4_out);
   assign and_3_out = Counter_2_3_out_1 & Counter_2_3_out_0;
   Multiplexer2 #(4) Multiplexer_0(Multiplexer_0_out, All_Red, DflipFlop_0_Q, and_3_out);
   OP_Selector OP_Selector_2(OP_Selector_2_out_0, OP_Selector_2_out_1, OP_Selector_2_out_2, OP_Selector_2_out_3, OP_Selector_2_out_4, OP_Selector_2_out_5, Multiplexer_0_out);
   assign and_0_out = xnor_0_out[0] & xnor_0_out[1];
-  DflipFlop #(4) DflipFlop_0(DflipFlop_0_Q, , , inp_0, , , );
+  DflipFlop #(4) DflipFlop_0(DflipFlop_0_Q, , clk_0, inp_0, Button_0_out, ,);
   assign All_Red = 4'b1110;
   assign Ground_0_out = 4'b0;
 endmodule
 
-module \2BitRiseEdge (Output, I, Clock);
+module TwoBitRiseEdge (Output, I, Clock);
   output [1:0] Output;
   input Clock;
   input [1:0] I;
@@ -393,15 +439,4 @@ module Multiplexer2(out, in0, in1, sel);
       1 : out = in1;
     endcase
 endmodule
-
-// Skeleton for Button0
-    /*
-    module Button0(out);
-      output reg out;
-    
-      initial begin
-        //do something with the button here
-      end
-    endmodule
-    */
     
