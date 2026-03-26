@@ -1,6 +1,7 @@
 # UTD Traffic Light Controller
 
 Verilog prototype for the CS 4341 digital logic project.
+Credits to https://circuitverse.org/simulator
 
 ## Project Goal
 
